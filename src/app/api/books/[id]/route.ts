@@ -55,7 +55,17 @@ export async function PUT(req: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // 고유 제약 위반(duplicate key)이면 23505 코드가 발생
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { error: "이미 같은 제목과 저자의 책이 존재합니다." },
+          { status: 400 }
+        );
+      }
+      throw error;
+    }
+
     if (!data) {
       // 수정 대상이 없으면 404
       return NextResponse.json({ error: "수정 실패" }, { status: 404 });

@@ -221,7 +221,9 @@ export default function HomePage() {
       });
       if (!res.ok) {
         const { error } = await res.json();
-        throw new Error(error || "수정 실패");
+
+        alert(error || "수정 실패");
+        return;
       }
       const updatedBook: Book = await res.json();
 
@@ -234,6 +236,16 @@ export default function HomePage() {
       setEditBook(null);
     } catch (err) {
       console.error(err);
+
+      if (err instanceof Error) {
+        if (err.message === "이미 같은 제목과 저자의 책이 존재합니다.") {
+          alert("이미 같은 제목과 저자의 책이 존재합니다.");
+        } else {
+          alert(err.message);
+        }
+      } else {
+        alert("알 수 없는 오류가 발생했습니다.");
+      }
     }
   };
 
