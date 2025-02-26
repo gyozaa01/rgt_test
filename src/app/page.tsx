@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Trash2, Minus, Edit, PlusCircle } from "lucide-react";
 import Image from "next/image";
 
 type Book = {
@@ -42,11 +42,15 @@ export default function HomePage() {
 
   // 새 책 추가 모달 상태
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // 새 책 입력 값
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
   const [newDetail, setNewDetail] = useState("");
+
+  // 편집용
+  const [editBook, setEditBook] = useState<Book | null>(null);
 
   // 책 목록 불러오기
   const fetchBooks = useCallback(async () => {
@@ -152,6 +156,87 @@ export default function HomePage() {
     }
   };
 
+  // 책 삭제
+  const handleDeleteBook = async (bookId: number) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+    try {
+      const res = await fetch(`/api/books/${bookId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        if (res.status !== 204) {
+          const { error } = await res.json();
+          throw new Error(error || "삭제 실패");
+        }
+      }
+      // 재fetch 없이 로컬 상태에서 제거
+      setBooks((prev) => prev.filter((b) => b.id !== bookId));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // 수량 +/-
+  const handleUpdateQuantity = async (book: Book, newQty: number) => {
+    try {
+      const res = await fetch(`/api/books/${book.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity: newQty }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error || "수량 변경 실패");
+      }
+      const updatedBook: Book = await res.json();
+
+      // books 배열에서 해당 책만 교체
+      setBooks((prev) =>
+        prev.map((b) => (b.id === updatedBook.id ? updatedBook : b))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // 책 편집(모달 열기)
+  const openEditModal = (book: Book) => {
+    setEditBook(book);
+    setShowEditModal(true);
+  };
+
+  // 책 편집(저장)
+  const handleEditBookSave = async () => {
+    if (!editBook) return;
+    try {
+      const res = await fetch(`/api/books/${editBook.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editBook.title,
+          author: editBook.author,
+          detail: editBook.detail,
+          quantity: editBook.quantity,
+        }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error || "수정 실패");
+      }
+      const updatedBook: Book = await res.json();
+
+      // 해당 책만 교체
+      setBooks((prev) =>
+        prev.map((b) => (b.id === updatedBook.id ? updatedBook : b))
+      );
+
+      setShowEditModal(false);
+      setEditBook(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   // 페이지네이션 계산
   const totalPages = Math.ceil(total / pageSize);
 
@@ -159,7 +244,12 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50">
       {/* 상단 헤더 */}
       <header className="p-4 bg-white shadow flex items-center justify-between">
-        <h1 className="text-xl font-bold">RGT 서점</h1>
+        <h1
+          className="text-xl font-bold"
+          onClick={() => window.location.reload()}
+        >
+          RGT 서점
+        </h1>
       </header>
 
       {/* 검색 영역 */}
@@ -217,10 +307,10 @@ export default function HomePage() {
             {books.map((book) => (
               <div
                 key={book.id}
-                className="border rounded bg-white shadow p-4 flex gap-4"
+                className="border rounded bg-white shadow p-4 flex flex-col sm:flex-row gap-4"
               >
                 {/* 책 표지 (랜덤) */}
-                <div className="w-1/3">
+                <div className="w-full sm:w-1/3">
                   <Image
                     src={`https://picsum.photos/200/300?random=${book.id}`}
                     alt="책 표지"
@@ -235,6 +325,45 @@ export default function HomePage() {
                   <div>
                     <h2 className="text-lg font-semibold">{book.title}</h2>
                     <p className="text-gray-600">저자: {book.author}</p>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    {/* 수량 +/- */}
+                    <button
+                      onClick={() =>
+                        handleUpdateQuantity(
+                          book,
+                          Math.max(book.quantity - 1, 0)
+                        )
+                      }
+                      className="p-1 border rounded hover:bg-gray-100"
+                    >
+                      <Minus size={16} />
+                    </button>
+                    <span className="w-6 text-center">{book.quantity}</span>
+                    <button
+                      onClick={() =>
+                        handleUpdateQuantity(book, book.quantity + 1)
+                      }
+                      className="p-1 border rounded hover:bg-gray-100"
+                    >
+                      <PlusCircle size={16} />
+                    </button>
+
+                    {/* 편집 아이콘 */}
+                    <button
+                      onClick={() => openEditModal(book)}
+                      className="ml-auto text-gray-600 hover:text-blue-600"
+                    >
+                      <Edit size={18} />
+                    </button>
+
+                    {/* 삭제 아이콘 */}
+                    <button
+                      onClick={() => handleDeleteBook(book.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -320,6 +449,103 @@ export default function HomePage() {
               </button>
               <button
                 onClick={handleAddBook}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 책 편집 모달 */}
+      {showEditModal && editBook && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded shadow w-80">
+            <h2 className="text-xl font-semibold mb-4">책 수정</h2>
+
+            {/* 제목 */}
+            <div className="mb-2">
+              <label className="block text-sm font-medium">제목</label>
+              <input
+                type="text"
+                className="border rounded w-full px-2 py-1"
+                value={editBook.title}
+                onChange={(e) =>
+                  setEditBook({ ...editBook, title: e.target.value })
+                }
+              />
+            </div>
+
+            {/* 저자 */}
+            <div className="mb-2">
+              <label className="block text-sm font-medium">저자</label>
+              <input
+                type="text"
+                className="border rounded w-full px-2 py-1"
+                value={editBook.author}
+                onChange={(e) =>
+                  setEditBook({ ...editBook, author: e.target.value })
+                }
+              />
+            </div>
+
+            {/* 상세 정보 */}
+            <div className="mb-2">
+              <label className="block text-sm font-medium">상세 정보</label>
+              <textarea
+                className="border rounded w-full px-2 py-1"
+                rows={3}
+                value={editBook.detail || ""}
+                onChange={(e) =>
+                  setEditBook({ ...editBook, detail: e.target.value })
+                }
+              />
+            </div>
+
+            {/* 수량: +/- 버튼으로만 조절 */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium">수량</label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() =>
+                    setEditBook((prev) =>
+                      prev
+                        ? { ...prev, quantity: Math.max(prev.quantity - 1, 0) }
+                        : prev
+                    )
+                  }
+                  className="p-1 border rounded hover:bg-gray-100"
+                >
+                  <Minus size={16} />
+                </button>
+                <span className="w-6 text-center">{editBook.quantity}</span>
+                <button
+                  onClick={() =>
+                    setEditBook((prev) =>
+                      prev ? { ...prev, quantity: prev.quantity + 1 } : prev
+                    )
+                  }
+                  className="p-1 border rounded hover:bg-gray-100"
+                >
+                  <PlusCircle size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* 취소 / 저장 버튼 */}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditBook(null);
+                }}
+                className="px-4 py-2 border rounded hover:bg-gray-100"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleEditBookSave}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
                 저장
