@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, Plus, Trash2, Minus, Edit, PlusCircle } from "lucide-react";
-import Image from "next/image";
+import BookItem from "@/app/components/BookItem";
+import AddBookModal from "@/app/components/AddBookModal";
+import EditBookModal from "@/app/components/EditBookModal";
+import { Search, Plus } from "lucide-react";
 
 type Book = {
   id: number;
@@ -317,68 +319,16 @@ export default function HomePage() {
           {/* 책 목록 */}
           <main className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             {books.map((book) => (
-              <div
+              <BookItem
                 key={book.id}
-                className="border rounded bg-white shadow p-4 flex flex-col sm:flex-row gap-4"
-              >
-                {/* 책 표지 (랜덤) */}
-                <div className="w-full sm:w-1/3">
-                  <Image
-                    src={`https://picsum.photos/200/300?random=${book.id}`}
-                    alt="책 표지"
-                    width={200}
-                    height={300}
-                    className="w-full h-auto object-cover"
-                    priority
-                  />
-                </div>
-                {/* 책 정보 */}
-                <div className="flex-1 flex flex-col justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold">{book.title}</h2>
-                    <p className="text-gray-600">저자: {book.author}</p>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    {/* 수량 +/- */}
-                    <button
-                      onClick={() =>
-                        handleUpdateQuantity(
-                          book,
-                          Math.max(book.quantity - 1, 0)
-                        )
-                      }
-                      className="p-1 border rounded hover:bg-gray-100"
-                    >
-                      <Minus size={16} />
-                    </button>
-                    <span className="w-6 text-center">{book.quantity}</span>
-                    <button
-                      onClick={() =>
-                        handleUpdateQuantity(book, book.quantity + 1)
-                      }
-                      className="p-1 border rounded hover:bg-gray-100"
-                    >
-                      <PlusCircle size={16} />
-                    </button>
-
-                    {/* 편집 아이콘 */}
-                    <button
-                      onClick={() => openEditModal(book)}
-                      className="ml-auto text-gray-600 hover:text-blue-600"
-                    >
-                      <Edit size={18} />
-                    </button>
-
-                    {/* 삭제 아이콘 */}
-                    <button
-                      onClick={() => handleDeleteBook(book.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
-              </div>
+                book={book}
+                onDecrease={(b) =>
+                  handleUpdateQuantity(b, Math.max(b.quantity - 1, 0))
+                }
+                onIncrease={(b) => handleUpdateQuantity(b, b.quantity + 1)}
+                onEdit={openEditModal}
+                onDelete={handleDeleteBook}
+              />
             ))}
           </main>
 
@@ -407,6 +357,28 @@ export default function HomePage() {
         </>
       )}
 
+      {/* 새 책 추가 모달 */}
+      <AddBookModal
+        show={showAddModal}
+        titleValue={newTitle}
+        authorValue={newAuthor}
+        detailValue={newDetail}
+        onChangeTitle={(val) => setNewTitle(val)}
+        onChangeAuthor={(val) => setNewAuthor(val)}
+        onChangeDetail={(val) => setNewDetail(val)}
+        onClose={() => setShowAddModal(false)}
+        onSave={handleAddBook}
+      />
+
+      {/* 책 편집 모달 */}
+      <EditBookModal
+        show={showEditModal}
+        book={editBook}
+        onChangeBook={(updated) => setEditBook(updated)}
+        onClose={() => setShowEditModal(false)}
+        onSave={handleEditBookSave}
+      />
+
       {/* 오른쪽 하단 -> 새 책 추가 버튼 */}
       <button
         onClick={() => setShowAddModal(true)}
@@ -414,158 +386,6 @@ export default function HomePage() {
       >
         <Plus size={24} />
       </button>
-
-      {/* 새 책 추가 모달 */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded shadow w-80">
-            <h2 className="text-xl font-semibold mb-4">책 추가하기</h2>
-            <div className="mb-2">
-              <label className="block text-sm font-medium">제목</label>
-              <input
-                type="text"
-                className="border rounded w-full px-2 py-1"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-              />
-            </div>
-            <div className="mb-2">
-              <label className="block text-sm font-medium">저자</label>
-              <input
-                type="text"
-                className="border rounded w-full px-2 py-1"
-                value={newAuthor}
-                onChange={(e) => setNewAuthor(e.target.value)}
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium">상세 정보</label>
-              <textarea
-                className="border rounded w-full px-2 py-1"
-                rows={3}
-                value={newDetail}
-                onChange={(e) => setNewDetail(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setNewTitle("");
-                  setNewAuthor("");
-                  setNewDetail("");
-                  setShowAddModal(false);
-                }}
-                className="px-4 py-2 border rounded hover:bg-gray-100"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleAddBook}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                저장
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 책 편집 모달 */}
-      {showEditModal && editBook && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded shadow w-80">
-            <h2 className="text-xl font-semibold mb-4">책 수정</h2>
-
-            {/* 제목 */}
-            <div className="mb-2">
-              <label className="block text-sm font-medium">제목</label>
-              <input
-                type="text"
-                className="border rounded w-full px-2 py-1"
-                value={editBook.title}
-                onChange={(e) =>
-                  setEditBook({ ...editBook, title: e.target.value })
-                }
-              />
-            </div>
-
-            {/* 저자 */}
-            <div className="mb-2">
-              <label className="block text-sm font-medium">저자</label>
-              <input
-                type="text"
-                className="border rounded w-full px-2 py-1"
-                value={editBook.author}
-                onChange={(e) =>
-                  setEditBook({ ...editBook, author: e.target.value })
-                }
-              />
-            </div>
-
-            {/* 상세 정보 */}
-            <div className="mb-2">
-              <label className="block text-sm font-medium">상세 정보</label>
-              <textarea
-                className="border rounded w-full px-2 py-1"
-                rows={3}
-                value={editBook.detail || ""}
-                onChange={(e) =>
-                  setEditBook({ ...editBook, detail: e.target.value })
-                }
-              />
-            </div>
-
-            {/* 수량: +/- 버튼으로만 조절 */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium">수량</label>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() =>
-                    setEditBook((prev) =>
-                      prev
-                        ? { ...prev, quantity: Math.max(prev.quantity - 1, 0) }
-                        : prev
-                    )
-                  }
-                  className="p-1 border rounded hover:bg-gray-100"
-                >
-                  <Minus size={16} />
-                </button>
-                <span className="w-6 text-center">{editBook.quantity}</span>
-                <button
-                  onClick={() =>
-                    setEditBook((prev) =>
-                      prev ? { ...prev, quantity: prev.quantity + 1 } : prev
-                    )
-                  }
-                  className="p-1 border rounded hover:bg-gray-100"
-                >
-                  <PlusCircle size={16} />
-                </button>
-              </div>
-            </div>
-
-            {/* 취소 / 저장 버튼 */}
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowEditModal(false);
-                  setEditBook(null);
-                }}
-                className="px-4 py-2 border rounded hover:bg-gray-100"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleEditBookSave}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                저장
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
