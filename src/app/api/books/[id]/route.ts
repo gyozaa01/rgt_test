@@ -60,7 +60,7 @@ export async function PUT(req: NextRequest) {
       if (error.code === "23505") {
         return NextResponse.json(
           { error: "이미 같은 제목과 저자의 책이 존재합니다." },
-          { status: 400 }
+          { status: 409 }
         );
       }
       throw error;

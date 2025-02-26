@@ -103,10 +103,27 @@ export default function HomePage() {
           quantity: 0, // 수량은 0으로 초기화
         }),
       });
+
       if (!res.ok) {
         const { error } = await res.json();
-        alert(error || "추가 실패");
-        return;
+        switch (res.status) {
+          case 400:
+            // 필수값 누락 or 기타 잘못된 요청
+            alert(error || "잘못된 요청입니다.");
+            return;
+          case 409:
+            // 중복 에러
+            alert("이미 같은 제목과 저자의 책이 존재합니다.");
+            return;
+          case 500:
+            // 서버 내부 에러
+            alert("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+            return;
+          default:
+            // 그 외
+            alert(error || "알 수 없는 오류가 발생했습니다.");
+            return;
+        }
       }
       // 새 책 객체
       const createdBook: Book = await res.json();
@@ -221,11 +238,26 @@ export default function HomePage() {
           quantity: editBook.quantity,
         }),
       });
+
       if (!res.ok) {
         const { error } = await res.json();
-
-        alert(error || "수정 실패");
-        return;
+        switch (res.status) {
+          case 400:
+            alert(error || "잘못된 요청입니다.");
+            return;
+          case 409:
+            alert("이미 같은 제목과 저자의 책이 존재합니다.");
+            return;
+          case 404:
+            alert("수정 대상 책을 찾을 수 없습니다.");
+            return;
+          case 500:
+            alert("서버 오류가 발생했습니다.");
+            return;
+          default:
+            alert(error || "알 수 없는 오류가 발생했습니다.");
+            return;
+        }
       }
       const updatedBook: Book = await res.json();
 
