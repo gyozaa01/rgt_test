@@ -128,6 +128,9 @@ export default function HomePage() {
       return (await res.json()) as Book;
     },
     onSuccess: async (createdBook) => {
+      // 저장 완료 알림
+      alert("새로운 책이 등록되었습니다!");
+
       // 모달 닫기 & 입력값 초기화
       setNewTitle("");
       setNewAuthor("");
@@ -191,6 +194,9 @@ export default function HomePage() {
       return bookId;
     },
     onSuccess: async () => {
+      // 삭제 완료 알림
+      alert("삭제가 완료되었습니다.");
+
       // 목록 캐시 무효화
       await queryClient.invalidateQueries({ queryKey: ["books"] });
     },
@@ -234,6 +240,9 @@ export default function HomePage() {
       return (await res.json()) as Book;
     },
     onSuccess: async () => {
+      // 수정 완료 알림
+      alert("수정이 완료되었습니다!");
+
       // 목록 캐시 무효화
       await queryClient.invalidateQueries({ queryKey: ["books"] });
 
