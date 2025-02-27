@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import BookItem from "@/app/components/BookItem";
 import AddBookModal from "@/app/components/AddBookModal";
 import EditBookModal from "@/app/components/EditBookModal";
@@ -22,13 +23,9 @@ type BookListResponse = {
 };
 
 export default function HomePage() {
-  const [books, setBooks] = useState<Book[]>([]);
-  const [total, setTotal] = useState(0);
+  // 페이지네이션
   const [page, setPage] = useState(1);
   const pageSize = 10;
-
-  // 로딩 상태
-  const [loading, setLoading] = useState(true);
 
   // 검색 입력 상태
   const [searchInput, setSearchInput] = useState("");
@@ -54,30 +51,38 @@ export default function HomePage() {
   // 편집용
   const [editBook, setEditBook] = useState<Book | null>(null);
 
-  // 책 목록 불러오기
-  const fetchBooks = useCallback(async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(pageSize),
-        searchType: appliedSearchType,
-        keyword: appliedKeyword,
-      });
-      const res = await fetch(`/api/books?${params.toString()}`);
-      const json: BookListResponse = await res.json();
-      setBooks(json.data);
-      setTotal(json.total);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+  // Tanstack Query: 목록 조회
+  const fetchBooks = async (): Promise<BookListResponse> => {
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+      searchType: appliedSearchType,
+      keyword: appliedKeyword,
+    });
+    const res = await fetch(`/api/books?${params.toString()}`);
+    if (!res.ok) {
+      const { error } = await res.json();
+      throw new Error(error || "목록 조회 실패");
     }
-  }, [page, pageSize, appliedSearchType, appliedKeyword]);
+    return res.json();
+  };
 
-  useEffect(() => {
-    fetchBooks();
-  }, [fetchBooks]);
+  // useQuery 훅
+  const {
+    data: booksData,
+    isLoading,
+    isError,
+    error,
+    // refetch
+  } = useQuery<BookListResponse>({
+    queryKey: ["books", page, appliedSearchType, appliedKeyword],
+    queryFn: fetchBooks,
+  });
+
+  // booksData가 없을 수 있으므로
+  const books = booksData?.data || [];
+  const total = booksData?.total || 0;
+  const totalPages = Math.ceil(total / pageSize);
 
   // 검색 버튼 클릭 시
   const handleSearch = () => {
@@ -86,64 +91,64 @@ export default function HomePage() {
     setAppliedSearchType(searchTypeInput);
   };
 
-  // 책 추가
-  const handleAddBook = async () => {
-    try {
-      if (!newTitle || !newAuthor) {
-        alert("제목, 저자는 필수입니다.");
-        return;
-      }
+  // Tanstack Query: Mutation
+  const queryClient = useQueryClient();
+
+  // 1) 새 책 추가
+  const addBookMutation = useMutation({
+    mutationFn: async (newBook: {
+      title: string;
+      author: string;
+      detail: string;
+    }) => {
       const res = await fetch("/api/books", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newTitle,
-          author: newAuthor,
-          detail: newDetail,
-          quantity: 0, // 수량은 0으로 초기화
-        }),
+        body: JSON.stringify({ ...newBook, quantity: 0 }),
       });
-
       if (!res.ok) {
         const { error } = await res.json();
         switch (res.status) {
           case 400:
             // 필수값 누락 or 기타 잘못된 요청
-            alert(error || "잘못된 요청입니다.");
-            return;
+            throw new Error(error || "잘못된 요청입니다.");
           case 409:
             // 중복 에러
-            alert("이미 같은 제목과 저자의 책이 존재합니다.");
-            return;
+            throw new Error("이미 같은 제목과 저자의 책이 존재합니다.");
           case 500:
             // 서버 내부 에러
-            alert("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-            return;
+            throw new Error(
+              "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+            );
           default:
             // 그 외
-            alert(error || "알 수 없는 오류가 발생했습니다.");
-            return;
+            throw new Error(error || "알 수 없는 오류가 발생했습니다.");
         }
       }
-      // 새 책 객체
-      const createdBook: Book = await res.json();
-
-      // 모달 닫기 & 입력 초기화
+      return (await res.json()) as Book;
+    },
+    onSuccess: async (createdBook) => {
+      // 모달 닫기 & 입력값 초기화
       setNewTitle("");
       setNewAuthor("");
       setNewDetail("");
       setShowAddModal(false);
 
-      // 전체 목록 재조회(정렬된 순서로)
+      // 목록 캐시 무효화 → 자동 refetch
+      await queryClient.invalidateQueries({ queryKey: ["books"] });
+
+      // 생성된 책이 전체 목록에서 몇 번째인지 확인하기 위해,
+      // 다시 전체 데이터(검색X, pageSize=999999) 불러오기
       const allRes = await fetch(
         `/api/books?searchType=전체&keyword=&pageSize=999999`
       );
       if (!allRes.ok) {
-        const { error } = await allRes.json();
-        throw new Error(error || "전체 목록 조회 실패");
+        setPage(1);
+        setAppliedSearchType("전체");
+        setAppliedKeyword("");
+        return;
       }
       const allData: BookListResponse = await allRes.json();
-
       // 새 책 위치 찾기
       const index = allData.data.findIndex((b) => b.id === createdBook.id);
       if (index === -1) {
@@ -151,8 +156,6 @@ export default function HomePage() {
         setPage(1);
         setAppliedSearchType("전체");
         setAppliedKeyword("");
-        setSearchInput("");
-        setSearchTypeInput("전체");
         return;
       }
 
@@ -165,73 +168,116 @@ export default function HomePage() {
       setSearchInput("");
       setSearchTypeInput("전체");
       setPage(newPage);
-
-      const params = new URLSearchParams({
-        page: String(newPage),
-        pageSize: String(pageSize),
-        searchType: "전체",
-        keyword: "",
-      });
-      const finalRes = await fetch(`/api/books?${params.toString()}`);
-      if (!finalRes.ok) {
-        const { error } = await finalRes.json();
-        throw new Error(error || "페이지 이동 후 목록 조회 실패");
-      }
-      const finalData: BookListResponse = await finalRes.json();
-
-      setBooks(finalData.data);
-      setTotal(finalData.total);
-    } catch (err) {
-      console.error(err);
+    },
+    onError: (err) => {
       if (err instanceof Error) {
         alert(err.message);
       } else {
         alert("알 수 없는 오류가 발생했습니다.");
       }
-    }
-  };
+    },
+  });
 
-  // 책 삭제
-  const handleDeleteBook = async (bookId: number) => {
-    if (!confirm("정말 삭제하시겠습니까?")) return;
-    try {
+  // 2) 책 삭제
+  const deleteBookMutation = useMutation({
+    mutationFn: async (bookId: number) => {
       const res = await fetch(`/api/books/${bookId}`, {
         method: "DELETE",
       });
-      if (!res.ok) {
-        if (res.status !== 204) {
-          const { error } = await res.json();
-          throw new Error(error || "삭제 실패");
-        }
+      if (!res.ok && res.status !== 204) {
+        const { error } = await res.json();
+        throw new Error(error || "삭제 실패");
       }
-      // 재fetch 없이 로컬 상태에서 제거
-      setBooks((prev) => prev.filter((b) => b.id !== bookId));
-    } catch (err) {
-      console.error(err);
-    }
-  };
+      return bookId;
+    },
+    onSuccess: async () => {
+      // 목록 캐시 무효화
+      await queryClient.invalidateQueries({ queryKey: ["books"] });
+    },
+    onError: (err) => {
+      if (err instanceof Error) {
+        alert(err.message);
+      }
+    },
+  });
 
-  // 수량 +/-
-  const handleUpdateQuantity = async (book: Book, newQty: number) => {
-    try {
-      const res = await fetch(`/api/books/${book.id}`, {
+  // 3) 책 수정 & 수량 변경
+  const updateBookMutation = useMutation({
+    mutationFn: async (payload: {
+      id: number;
+      title?: string;
+      author?: string;
+      detail?: string;
+      quantity?: number;
+    }) => {
+      const { id, ...rest } = payload;
+      const res = await fetch(`/api/books/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity: newQty }),
+        body: JSON.stringify(rest),
       });
       if (!res.ok) {
         const { error } = await res.json();
-        throw new Error(error || "수량 변경 실패");
+        switch (res.status) {
+          case 400:
+            throw new Error(error || "잘못된 요청입니다.");
+          case 409:
+            throw new Error("이미 같은 제목과 저자의 책이 존재합니다.");
+          case 404:
+            throw new Error("수정 대상 책을 찾을 수 없습니다.");
+          case 500:
+            throw new Error("서버 오류가 발생했습니다.");
+          default:
+            throw new Error(error || "알 수 없는 오류가 발생했습니다.");
+        }
       }
-      const updatedBook: Book = await res.json();
+      return (await res.json()) as Book;
+    },
+    onSuccess: async () => {
+      // 목록 캐시 무효화
+      await queryClient.invalidateQueries({ queryKey: ["books"] });
 
-      // books 배열에서 해당 책만 교체
-      setBooks((prev) =>
-        prev.map((b) => (b.id === updatedBook.id ? updatedBook : b))
-      );
-    } catch (err) {
-      console.error(err);
+      // 만약 편집 모달에서 수정했다면, 모달 닫기
+      setShowEditModal(false);
+      setEditBook(null);
+    },
+    onError: (err) => {
+      if (err instanceof Error) {
+        alert(err.message);
+      }
+    },
+  });
+
+  const handleCloseAddModal = () => {
+    // 모달을 닫기 전에 입력값을 리셋
+    setNewTitle("");
+    setNewAuthor("");
+    setNewDetail("");
+    setShowAddModal(false);
+  };
+
+  // 새 책 추가
+  const handleAddBook = () => {
+    if (!newTitle || !newAuthor) {
+      alert("제목, 저자는 필수입니다.");
+      return;
     }
+    addBookMutation.mutate({
+      title: newTitle,
+      author: newAuthor,
+      detail: newDetail,
+    });
+  };
+
+  // 책 삭제
+  const handleDeleteBook = (bookId: number) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+    deleteBookMutation.mutate(bookId);
+  };
+
+  // 수량 +/-
+  const handleUpdateQuantity = (book: Book, newQty: number) => {
+    updateBookMutation.mutate({ id: book.id, quantity: newQty });
   };
 
   // 책 편집(모달 열기)
@@ -241,66 +287,31 @@ export default function HomePage() {
   };
 
   // 책 편집(저장)
-  const handleEditBookSave = async () => {
+  const handleEditBookSave = () => {
     if (!editBook) return;
-    try {
-      const res = await fetch(`/api/books/${editBook.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: editBook.title,
-          author: editBook.author,
-          detail: editBook.detail,
-          quantity: editBook.quantity,
-        }),
-      });
-
-      if (!res.ok) {
-        const { error } = await res.json();
-        switch (res.status) {
-          case 400:
-            alert(error || "잘못된 요청입니다.");
-            return;
-          case 409:
-            alert("이미 같은 제목과 저자의 책이 존재합니다.");
-            return;
-          case 404:
-            alert("수정 대상 책을 찾을 수 없습니다.");
-            return;
-          case 500:
-            alert("서버 오류가 발생했습니다.");
-            return;
-          default:
-            alert(error || "알 수 없는 오류가 발생했습니다.");
-            return;
-        }
-      }
-      const updatedBook: Book = await res.json();
-
-      // 해당 책만 교체
-      setBooks((prev) =>
-        prev.map((b) => (b.id === updatedBook.id ? updatedBook : b))
-      );
-
-      setShowEditModal(false);
-      setEditBook(null);
-    } catch (err) {
-      console.error(err);
-
-      if (err instanceof Error) {
-        if (err.message === "이미 같은 제목과 저자의 책이 존재합니다.") {
-          alert("이미 같은 제목과 저자의 책이 존재합니다.");
-        } else {
-          alert(err.message);
-        }
-      } else {
-        alert("알 수 없는 오류가 발생했습니다.");
-      }
-    }
+    updateBookMutation.mutate({
+      id: editBook.id,
+      title: editBook.title,
+      author: editBook.author,
+      detail: editBook.detail,
+      quantity: editBook.quantity,
+    });
   };
 
-  // 페이지네이션 계산
-  const totalPages = Math.ceil(total / pageSize);
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-8 h-8 border-4 border-blue-300 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    const errMsg = error instanceof Error ? error.message : "알 수 없는 오류";
+    return (
+      <div className="p-4 text-red-500">에러가 발생했습니다: {errMsg}</div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -350,12 +361,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 로딩 중 */}
-      {loading ? (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="w-8 h-8 border-4 border-blue-300 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      ) : books.length === 0 ? (
+      {/* 책 목록 / 검색 결과 */}
+      {books.length === 0 ? (
         // 책이 0개일 때
         <div className="p-4 text-center text-gray-500">
           {appliedKeyword === "" && appliedSearchType === "전체"
@@ -414,7 +421,7 @@ export default function HomePage() {
         onChangeTitle={(val) => setNewTitle(val)}
         onChangeAuthor={(val) => setNewAuthor(val)}
         onChangeDetail={(val) => setNewDetail(val)}
-        onClose={() => setShowAddModal(false)}
+        onClose={handleCloseAddModal}
         onSave={handleAddBook}
       />
 
