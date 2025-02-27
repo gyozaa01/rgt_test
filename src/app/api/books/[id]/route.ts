@@ -12,6 +12,16 @@ function getBookIdFromUrl(req: NextRequest) {
   return segments[segments.length - 1];
 }
 
+// BookUpdatePayload 타입
+type BookUpdatePayload = {
+  title?: string;
+  author?: string;
+  detail?: string;
+  quantity?: number;
+  normalized_title?: string;
+  normalized_author?: string;
+};
+
 // GET /api/books/[id]
 export async function GET(req: NextRequest) {
   const bookId = getBookIdFromUrl(req);
@@ -48,9 +58,23 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { title, author, detail, quantity } = body;
 
+    // 만약 title, author가 변경될 수 있다면, 여기에서도 공백 제거 + 소문자 변환
+    const updatePayload: BookUpdatePayload = { detail, quantity };
+
+    if (title) {
+      updatePayload.title = title;
+      updatePayload.normalized_title = title.replace(/\s+/g, "").toLowerCase();
+    }
+    if (author) {
+      updatePayload.author = author;
+      updatePayload.normalized_author = author
+        .replace(/\s+/g, "")
+        .toLowerCase();
+    }
+
     const { data, error } = await supabase
       .from("books")
-      .update({ title, author, detail, quantity })
+      .update(updatePayload)
       .eq("id", bookId)
       .select()
       .single();

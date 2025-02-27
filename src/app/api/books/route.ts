@@ -67,10 +67,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 공백 제거 + 소문자 변환
+    const normalizedTitle = title.replace(/\s+/g, "").toLowerCase();
+    const normalizedAuthor = author.replace(/\s+/g, "").toLowerCase();
+
     // Supabase에 새 책 추가
     const { data, error } = await supabase
       .from("books")
-      .insert([{ title, author, detail, quantity }])
+      .insert([
+        {
+          title,
+          author,
+          detail,
+          quantity,
+          normalized_title: normalizedTitle,
+          normalized_author: normalizedAuthor,
+        },
+      ])
       .select()
       .single();
 
