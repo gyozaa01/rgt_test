@@ -165,6 +165,22 @@ export default function HomePage() {
       setSearchInput("");
       setSearchTypeInput("전체");
       setPage(newPage);
+
+      const params = new URLSearchParams({
+        page: String(newPage),
+        pageSize: String(pageSize),
+        searchType: "전체",
+        keyword: "",
+      });
+      const finalRes = await fetch(`/api/books?${params.toString()}`);
+      if (!finalRes.ok) {
+        const { error } = await finalRes.json();
+        throw new Error(error || "페이지 이동 후 목록 조회 실패");
+      }
+      const finalData: BookListResponse = await finalRes.json();
+
+      setBooks(finalData.data);
+      setTotal(finalData.total);
     } catch (err) {
       console.error(err);
       if (err instanceof Error) {
