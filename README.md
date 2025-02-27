@@ -171,12 +171,16 @@ RGT
 <table>
   <tr>
     <td align="center">
-      <img width="450" alt="제목 - 키워드 검색" src="https://github.com/user-attachments/assets/e4c130db-90a5-472a-8904-92f58935eabf">
+      <img width="300" alt="제목 - 키워드 검색" src="https://github.com/user-attachments/assets/e4c130db-90a5-472a-8904-92f58935eabf">
       <br><b>제목 - 키워크 검색</b>
     </td>
     <td align="center">
-      <img width="450" alt="저자 - 키워드 검색" src="https://github.com/user-attachments/assets/43124b4d-8841-4265-9731-98fee7143a05">
+      <img width="300" alt="저자 - 키워드 검색" src="https://github.com/user-attachments/assets/43124b4d-8841-4265-9731-98fee7143a05">
       <br><b>저자 - 키워드 검색</b>
+    </td>
+        <td align="center">
+      <img width="300" alt="검색 결과 없음" src="https://github.com/user-attachments/assets/d80ba3c8-c8ef-47b4-9fa8-c75304d2b86c">
+      <br><b>검색 결과 없음</b>
     </td>
   </tr>
 </table>
@@ -192,6 +196,7 @@ RGT
 - 전체: 제목 또는 저자에 해당 키워드가 포함된 책을 검색
 - 제목: 제목에만 키워드가 포함된 책을 검색
 - 저자: 저자에만 키워드가 포함된 책을 검색
+- 검색 결과 없을 경우 메시지 표시
 - 검색 버튼 클릭(또는 엔터 입력) 시, 검색 조건(타입, 키워드)에 따라 API를 호출하여 해당 목록을 필터링해 표시
 
 ---
