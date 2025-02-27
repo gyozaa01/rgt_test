@@ -37,6 +37,7 @@ export default function BookItem({
           height={300}
           className="w-full h-auto object-cover"
           priority
+          sizes="100vw"
         />
       </div>
 
